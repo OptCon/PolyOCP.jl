@@ -57,8 +57,8 @@ export  OrthonoPCE,
         jointPCE
 
 include("Problem.jl")
-using   .Problem: StochProb
-export  StochProb
+using   .Problem: StochProb, defineOCP
+export  StochProb, defineOCP
 
 ## used packages: JuMP, ParameterJuMP, SpecialFunctions, SparseArrayKit
 include("Constraints.jl")
@@ -72,7 +72,7 @@ export  quadobj
 
 ## used packages: JuMP, Ipopt, LinearAlgebra
 include("Solver.jl")
-using .Solver: build, solveOCP
-export build, solveOCP
+using .Solver: buildOCP, solveOCP
+export buildOCP, solveOCP
 
 end  # module StochasticToolkit

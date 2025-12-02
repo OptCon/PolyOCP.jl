@@ -8,8 +8,8 @@ makedocs(;
     authors="Ruchuan Ou <ruchuan.ou@tuhh.de> and contributors",
     sitename="PolyOCP.jl",
     format=Documenter.HTML(;
-        canonical="https://Ruchuan.github.io/PolyOCP.jl",
-        edit_link="master",
+        canonical="https://github.com/OptCon/PolyOCP.jl",
+        edit_link="main",
         assets=String[],
     ),
     pages=[
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/Ruchuan/PolyOCP.jl",
-    devbranch="master",
+    repo="github.com/OptCon/PolyOCP.jl",
+    devbranch="main",
 )

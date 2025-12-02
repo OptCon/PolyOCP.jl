@@ -8,10 +8,15 @@ using ..Problem:        StochProb
 using ..Constraints:    con_chance, con_causality, con_dynamics
 using ..Objectives:     quadobj
 
-function build(problem::StochProb;
+function buildOCP(problem::StochProb;
                 optimizer::Union{DataType,Nothing} = Ipopt.Optimizer,
                 print_level::Union{Int, Nothing} = nothing,
                 max_cpu_time::Union{Real, Nothing} = nothing)
+    
+    println("\n" * "*"^60)
+    println("Starting to build JuMP model for stochastic OCP...")
+    println("*"^60 * "\n")
+
     _ensure_problem_ready(problem)
 
     N       = problem.N
@@ -26,19 +31,41 @@ function build(problem::StochProb;
     x0coeff_joint, wcoeff_joint = jointPCE(x0coeff, wcoeff, N)
     L = size(x0coeff_joint, 2)
 
+    
     model = JuMP.Model(optimizer)
     @variable(model, x[1:nx, 1:N+1, 1:L])
     @variable(model, u[1:nu, 1:N, 1:L])
 
-    con_dynamics(model, problem, x0coeff_joint, wcoeff_joint; state=:x, input=:u)
-    con_causality(model, problem; input = :u)
-    con_chance(model, lbx, ubx, lbu, ubu; gauss = problem.gauss)
-
     # Constraints._constraint_chance_constraints(model, problem.risk_tolerance, problem.bound)
-    problem.R === nothing || quadobj(model, problem; state = :x, input = :u)
+    if problem.R !== nothing
+        quadobj(model, problem; state = :x, input = :u)
+        println("Quadratic ojective added")
+    else
+        println("Quadratic objective is skipped (R not provided).")
+    end
+
+    println("Building constraints:")
+    con_dynamics(model, problem, x0coeff_joint, wcoeff_joint; state=:x, input=:u)
+    println("  • Dynamics and initial condition constraints added")
+    con_causality(model, problem; input = :u)
+    println("  • Causality constraint added")
+    active_cc = con_chance(model, lbx, ubx, lbu, ubu; gauss = problem.gauss)
+    if isempty(active_cc)
+        println("  • No chance constraint provided.")
+    else
+        println("  • Following chance constraints added:")
+        for cc in active_cc
+            println("      - ", cc)
+        end
+    end
+
 
     !isnothing(print_level) && set_optimizer_attribute(model, "print_level", print_level);
     !isnothing(max_cpu_time) && set_optimizer_attribute(model, "max_cpu_time", max_cpu_time);
+
+    println("\n" * "*"^60)
+    println("JuMP model building completed.")
+    println("*"^60 * "\n")
     return model
 end
 

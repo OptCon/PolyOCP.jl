@@ -83,23 +83,31 @@ function con_chance(model::Model,
                     ubu::Union{Nothing, Tuple{<:AbstractVector{<:Real}, <:AbstractVector{<:Real}}};
                     gauss::Bool = false, state::Symbol = :x, input::Symbol = :u)
 
+    active_cc = String[]
+
     # state
     if lbx !== nothing
         lbx[2] .= -lbx[2]
         con_chance(model, state, lbx; gauss = gauss)  # lower bounds for state
+        push!(active_cc, "lbx (state lower bound)")
     end
     if ubx !== nothing
         con_chance(model, state, ubx; gauss = gauss)  # upper bounds for state
+        push!(active_cc, "ubx (state upper bound)")
     end
 
     # Inputs
     if lbu !== nothing
         lbu[2] .= -lbu[2]
-        con_chance(model, input, lbu; gauss = gauss)  # lower bounds for inptu
+        con_chance(model, input, lbu; gauss = gauss)  # lower bounds for Input
+        push!(active_cc, "lbu (input lower bound)")
     end
     if ubu !== nothing
         con_chance(model, input, ubu; gauss = gauss)  # upper bounds for input
+        push!(active_cc, "ubu (input upper bound)")
     end
+
+    return active_cc
 end
 
 # add constraint for causality

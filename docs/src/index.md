@@ -4,11 +4,13 @@ CurrentModule = PolyOCP
 
 # PolyOCP
 
-Documentation for [PolyOCP](https://github.com/Ruchuan/PolyOCP.jl).
+Documentation for [PolyOCP](https://github.com/OptCon/PolyOCP.jl).
 
 ```@index
 ```
 
 ```@autodocs
 Modules = [PolyOCP]
+Order = [:module, :type, :function, :macro]
+
 ```

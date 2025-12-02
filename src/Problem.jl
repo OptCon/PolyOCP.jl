@@ -103,8 +103,7 @@ function StochProb(
     _check_bound_consistency(lbx, ubx, "state bounds")
     _check_bound_consistency(lbu, ubu, "input bounds")
 
-
-    return StochProb(
+    problem = StochProb(
         N,
         x0coeff, wcoeff,
         A, B, E,
@@ -114,6 +113,9 @@ function StochProb(
         gauss,
         nx, nu, nw
     )
+    _print_summary(problem)
+
+    return problem
 end
 
 function StochProb(
@@ -133,6 +135,17 @@ function StochProb(
         wcoeff = wcoeff
     )
 end
+
+"""
+    defineOCP(args...; kwargs...)
+
+User-facing constructor for defining a stochastic optimal control problem.
+This is a thin wrapper around `StochProb`, which performs dimension checks
+and collects all optional problem data.
+
+See `?StochProb` for detailed argument documentation.
+"""
+defineOCP(args...; kwargs...) = StochProb(args...; kwargs...)
 
 function _check_bound(bound_pars::Bound, dim::Int, name::String)
     bound_pars === nothing && return nothing
@@ -163,5 +176,64 @@ function _check_bound_consistency(lb_pars::Bound, ub_pars::Bound, name::String)
 
     return nothing
 end
+
+function _print_summary(problem::StochProb)
+
+    println("\n" * "*"^60)
+    println("PolyOCP is a toolbox for stochastic OCPs and MPC.")
+    println("*"^60 * "\n")
+    println("All provided parameters have been validated.")
+    println("Stochastic OCP (StochProb) successfully defined.")
+    println("\nMissing optional parameters:")
+
+    nothing_missing = true
+
+    # x0coeff
+    if problem.x0coeff === nothing
+        println(" • x0coeff : PCE coefficients of initial condition must be provided later.")
+        nothing_missing = false
+    end
+
+    # wcoeff
+    if problem.wcoeff === nothing
+        println(" • wcoeff  : PCE coefficients of disturbances must be provided later.")
+        nothing_missing = false
+    end
+
+    # weights
+    missing_weights = String[]
+    problem.Q  === nothing && push!(missing_weights, "Q (state cost)")
+    problem.R  === nothing && push!(missing_weights, "R (input cost)")
+    problem.QN === nothing && push!(missing_weights, "QN (terminal cost)")
+
+    if !isempty(missing_weights)
+        println(" • Weights : ", join(missing_weights, ", "))
+        nothing_missing = false
+    end
+
+    # Bounds group
+    lbx, ubx, lbu, ubu = problem.lbx, problem.ubx, problem.lbu, problem.ubu
+    if any((lbx === nothing, ubx === nothing, lbu === nothing, ubu === nothing))
+        println(" • Bounds  :")
+        lbx === nothing && println("     - lbx (state lower bound)")
+        ubx === nothing && println("     - ubx (state upper bound)")
+        lbu === nothing && println("     - lbu (input lower bound)")
+        ubu === nothing && println("     - ubu (input upper bound)")
+        nothing_missing = false
+    end
+
+    # gauss flag
+    if problem.gauss == true
+        println(" • gauss   : X0 and W are Gaussian distributed")
+    end
+
+    # If all optional data were supplied
+    if nothing_missing
+        println(" • None — all optional fields have been provided.")
+    end
+
+    println("*"^60 * "\n")
+end
+
 
 end

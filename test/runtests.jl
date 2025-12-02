@@ -1,6 +1,6 @@
-using PolyOCP
 using Test
+using PolyOCP
 
-@testset "PolyOCP.jl" begin
-    # Write your tests here.
-end
+# current tests are implemented based on the examples
+include("ocp.jl")
+include("mpc.jl")

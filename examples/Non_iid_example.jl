@@ -1,14 +1,11 @@
-#=
+"""
 This example revisits the chemical reactor example, but with non-i.i.d. disturbances
 We consider the periodic disturbances with period = 2, i.e.
 W(0) = U(-0.1, 0.1), W(1) = U(-0.2, 0.2),
 W(2) ~ W(0), W(3) ~ W(1),...
 where U denotes the uniform distribution
-=#
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))   # activate package environment
+"""
 
-using Revise
 using PolyOCP
 using LinearAlgebra, JuMP
 using FFTW, PyPlot, LaTeXStrings
