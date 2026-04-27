@@ -4,11 +4,11 @@ using JuMP, Ipopt, LinearAlgebra
 
 using ..Auxfuns:        _to_matrix, _maybe_to_matrix, _check_wcoeff
 using ..PCE:            jointPCE
-using ..Problem:        StochProb
+using ..Problem:        StochOCP
 using ..Constraints:    con_chance, con_causality, con_dynamics
 using ..Objectives:     quadobj
 
-function buildOCP(problem::StochProb;
+function buildOCP(problem::StochOCP;
                 optimizer::Union{DataType,Nothing} = Ipopt.Optimizer,
                 print_level::Union{Int, Nothing} = nothing,
                 max_cpu_time::Union{Real, Nothing} = nothing)
@@ -101,7 +101,7 @@ function solveOCP(model::JuMP.Model;
     end
 end
 
-function _ensure_problem_ready(problem::StochProb)
+function _ensure_problem_ready(problem::StochOCP)
 
     x0coeff = problem.x0coeff
     wcoeff  = problem.wcoeff
@@ -117,14 +117,14 @@ function _ensure_problem_ready(problem::StochProb)
 
     x0coeff = _maybe_to_matrix(x0coeff)
     wcoeff  = _maybe_to_matrix(wcoeff)
-    size(x0coeff, 1) != problem.nx && throw(ArgumentError("PCE coefficients of X0 must have $nx rows (got $(size(x0coeff, 1)))."))
+    size(x0coeff, 1) != problem.nx && throw(ArgumentError("PCE coefficients of X0 must have $(problem.nx) rows (got $(size(x0coeff, 1)))."))
     _check_wcoeff(wcoeff, problem.N, problem.nw)
     _ensure_weights!(problem)
 
     return nothing
 end
 
-function _ensure_weights!(problem::StochProb)
+function _ensure_weights!(problem::StochOCP)
     nx, nu = problem.nx, problem.nu
 
     if problem.R === nothing

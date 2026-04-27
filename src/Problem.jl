@@ -1,6 +1,7 @@
 module Problem
 
 using ..Auxfuns: _to_matrix, _maybe_to_matrix, _check_wcoeff
+using ..PCE: OrthonoPCE
 
 const RealMat = AbstractMatrix{<:Real}
 const RealVec = AbstractVector{<:Real}
@@ -10,8 +11,20 @@ const RealVecVec = AbstractVector{<:RealVec}
 const Weighting = Union{RealMat, Real, Nothing}
 const Bound = Union{Tuple{RealVec, RealVec}, Tuple{Real, Real}, Nothing}
 
+const X0CoeffInput = Union{
+    RealMat, RealVec, Real,
+    OrthonoPCE,
+    Nothing
+}
 
-mutable struct StochProb
+const DistCoeffInput = Union{
+    RealMat, RealVec, Real,
+    RealMatVec, RealVecVec,
+    OrthonoPCE, AbstractVector{<:OrthonoPCE},
+    Nothing
+}
+
+mutable struct StochOCP
     N::Int
 
     x0coeff::Union{RealMat, Nothing}
@@ -37,23 +50,24 @@ mutable struct StochProb
     nw::Int
 end
 
-"""
-    StochProb(N, A, B, E; kwargs...)
 
-Construct a `StochProb` instance given the prediction horizon and system matrices.
+"""
+    StochOCP(N, A, B, E; kwargs...)
+
+Construct a `StochOCP` instance given the prediction horizon and system matrices.
 All optional data (initial conditions, disturbances, costs, and bounds) default to
 `nothing` so that they can be supplied or modified after construction. Dimension
 checks are carried out for any optional arguments that are provided.
 """
-function StochProb(
+function StochOCP(
     N::Int,
     A::Union{RealMat, Real},
     B::Union{RealMat, RealVec, Real},
     E::Union{RealMat, RealVec, Real};
-    x0coeff::Union{RealMat, RealVec, Real, Nothing} = nothing,
-    wcoeff::Union{RealMat, RealVec, RealMatVec, RealVecVec, Real, Nothing} = nothing,
-    Q::Weighting   = nothing,
-    R::Weighting   = nothing,
+    x0coeff::X0CoeffInput = nothing,
+    wcoeff::DistCoeffInput = nothing,
+    Q::Weighting = nothing,
+    R::Weighting = nothing,
     QN::Weighting = nothing,
     lbx::Bound = nothing,
     ubx::Bound = nothing,
@@ -73,13 +87,17 @@ function StochProb(
     (nx, nu) = size(B)
     nw = size(E, 2)
 
+    # extract coeffs if OrthonoPCE was passed
+    x0coeff = _extract_coeff(x0coeff)
+    wcoeff  = _extract_coeff(wcoeff)
+
     x0coeff = _maybe_to_matrix(x0coeff)
     wcoeff  = _maybe_to_matrix(wcoeff)
     Q       = _maybe_to_matrix(Q)
     R       = _maybe_to_matrix(R)
     QN      = _maybe_to_matrix(QN)
 
-    checks  = [
+    checks = [
         (size(A, 1), nx, "B must have the same number of rows as A"),
         (size(E, 1), nx, "E must have the same number of rows as A"),
     ]
@@ -90,7 +108,7 @@ function StochProb(
         end
     end
 
-    ( x0coeff !== nothing && size(x0coeff, 1) != nx ) &&
+    (x0coeff !== nothing && size(x0coeff, 1) != nx) &&
         throw(ArgumentError("PCE coefficients of X0 must have $nx rows (got $(size(x0coeff, 1)))."))
 
     _check_wcoeff(wcoeff, N, nw)
@@ -103,7 +121,7 @@ function StochProb(
     _check_bound_consistency(lbx, ubx, "state bounds")
     _check_bound_consistency(lbu, ubu, "input bounds")
 
-    problem = StochProb(
+    problem = StochOCP(
         N,
         x0coeff, wcoeff,
         A, B, E,
@@ -118,16 +136,16 @@ function StochProb(
     return problem
 end
 
-function StochProb(
+function StochOCP(
     N::Int,
     A::Union{RealMat, Real},
     B::Union{RealMat, RealVec, Real},
     E::Union{RealMat, RealVec, Real},
-    x0coeff::Union{RealMat, RealVec, Real},
-    wcoeff::Union{RealMat, RealVec, RealMatVec, RealVecVec, Real};
+    x0coeff::X0CoeffInput,
+    wcoeff::DistCoeffInput;
     kwargs...
 )
-    return StochProb(
+    return StochOCP(
         N,
         A, B, E;
         kwargs...,
@@ -136,16 +154,23 @@ function StochProb(
     )
 end
 
+
 """
     defineOCP(args...; kwargs...)
 
 User-facing constructor for defining a stochastic optimal control problem.
-This is a thin wrapper around `StochProb`, which performs dimension checks
+This is a thin wrapper around `StochOCP`, which performs dimension checks
 and collects all optional problem data.
 
-See `?StochProb` for detailed argument documentation.
+See `?StochOCP` for detailed argument documentation.
 """
-defineOCP(args...; kwargs...) = StochProb(args...; kwargs...)
+defineOCP(args...; kwargs...) = StochOCP(args...; kwargs...)
+
+
+_extract_coeff(x::Nothing) = nothing
+_extract_coeff(x::OrthonoPCE) = x.coeff
+_extract_coeff(x::AbstractVector{<:OrthonoPCE}) = getfield.(x, :coeff)
+_extract_coeff(x) = x
 
 function _check_bound(bound_pars::Bound, dim::Int, name::String)
     bound_pars === nothing && return nothing
@@ -177,13 +202,13 @@ function _check_bound_consistency(lb_pars::Bound, ub_pars::Bound, name::String)
     return nothing
 end
 
-function _print_summary(problem::StochProb)
+function _print_summary(problem::StochOCP)
 
     println("\n" * "*"^60)
     println("PolyOCP is a toolbox for stochastic OCPs and MPC.")
     println("*"^60 * "\n")
     println("All provided parameters have been validated.")
-    println("Stochastic OCP (StochProb) successfully defined.")
+    println("Stochastic OCP (StochOCP) successfully defined.")
     println("\nMissing optional parameters:")
 
     nothing_missing = true
@@ -234,6 +259,5 @@ function _print_summary(problem::StochProb)
 
     println("*"^60 * "\n")
 end
-
 
 end

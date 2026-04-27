@@ -17,7 +17,7 @@ addprocs(ncores, topology = :master_worker, exeflags = "--project=$(Base.active_
 @everywhere using PolyOCP
 @everywhere using LinearAlgebra, Random, SharedArrays
 
-##
+## --------------------------------------------------------------------------
 N       = 10    # prediction horizon of OCP
 Nmpc    = 50    # closed-loop steps
 Ns      = 10  # number of samplings
@@ -39,15 +39,15 @@ Q    = Matrix(3.0*I, nx, nx)
 R    = Matrix(10^-4*I, nu, nu)
 QN   = Q
 
-# Frist create PCE for each component of Wi -> WiPCE
-# Then construct a random vector of W -> [WiPCE for i=1:nw], where each component is WiPCE
-# Function genPCE(...) directly genrate PCE of random vector W
-# In MPC loop, the initial condition is measured and thus deterministic
+#= Frist create PCE for each component of Wi -> WiPCE
+Then construct a random vector of W -> [WiPCE for i=1:nw], where each component is WiPCE
+Function genPCE(...) directly genrate PCE of random vector W
+In MPC loop, the initial condition is measured and thus deterministic =#
 Wi_OrthonoPoly  = HermiteOrthonoPoly(2) # PCE basis of Wi
 Wi_coeff        = 0.05*[1; 1; sqrt(2)]  # PCE coefficients of Wi
 WiPCE           = OrthonoPCE(Wi_OrthonoPoly, Wi_coeff)
 WPCE            = genPCE([WiPCE for i=1:nw])
-x0              = ones(nx, 1)
+x0              = ones(nx)
 
 lbx = ([-2;-2;-Inf;-Inf], [0.1;0.1;1;1])
 ubx = ([2;2;Inf;Inf], [0.1;0.1;1;1])
@@ -68,8 +68,10 @@ tMPC   = SharedArray{Float64}((Ns,1))
 tAll   = 0
 
 xTrajs[:,1,:] = 2*rand(nx,Ns).-1
-ξTrajs        = randn(nw, Nmpc, Ns)
-wTrajs[:,:,:] = 0.05*(ξTrajs .+ ξTrajs.^2)
+# Sample i.i.d. disturbances and reshape
+rng = MersenneTwister(1)
+W = samplePCE(WPCE, Nmpc*Ns; rng=rng) 
+wTrajs = reshape(W, nw, Nmpc, Ns)
 
 #= print_level decides the printed information of the solver
 print_level = 0 hides the information in the repeated MPC loop
@@ -89,89 +91,54 @@ tAllParallel = @elapsed begin
         end
     end
     tMPC[s] = tMPCs
-    ## the following line prints the finished samplings
+    # the following line prints the finished samplings
     # println(lpad(i, 3))
 end
 end
 
-## loading data
+## --------------------------------------------------------------------------
+# loading saved data if there are
 xTrajs = Array(xTrajs)
 uTrajs = Array(uTrajs)
 tMPC   = Array(tMPC)
 nx, Nmpc, Ns  = size(xTrajs)
 Nmpc = Nmpc - 1
 
- ## plot the sampled trajectories
-using PyPlot, LaTeXStrings
-const plt = PyPlot
+## --------------------------------------------------------------------------
+# plot the sampled trajectories
+FS = 14
+fig, ax = plot_traj(xTrajs[:, :, 1:10];
+    ylabel = "x",
+    labelsize=FS,
+    ticksize=FS,
+    figsize = (8.4, 5),
+    linewidth = 1.0,
+    showfig=false)
 
-FS  = 18; LW = 1;
-
-rc("font",style="italic")
-fig, ax = plt.subplots(4, sharex=true,sharey=false, figsize=(8.4, 5))
-Nplot = 10
-for k = 1:nx
-    ax[k].plot(0:Nmpc, xTrajs[k,:,1:Nplot], linewidth=LW)
-    ax[k].set_xlim(0, Nmpc)
-    ax[k].set_ylabel(latexstring("x_{", k, "}"), fontsize=FS)
-    ax[k].tick_params(labelsize=FS)
-    ax[k].grid("both")
-end
-ax[4].set_xlabel("k", fontsize=FS)
-fig.align_ylabels(ax)
-tight_layout()
 fig.text(0.5, -0.05,
-        "10 different closed-loop realizations of state trajectories",
-        fontsize=FS, ha="center")
+    "10 different closed-loop realizations of state trajectories",
+    fontsize=FS, ha = "center")
+display(fig)
 
-display(gcf())
-# savefig("figures/EX2_TankSampleTraj.pdf")
+## --------------------------------------------------------------------------
+# plot the histograms of samples to approximate probability density functions
+steps   = 0:10:Nmpc
+x1Trajs = [xTrajs[1,k+1,:] for k in steps]
+x2Trajs = [xTrajs[2,k+1,:] for k in steps]
 
-## plot the histograms of samples to approximate probability density functions
-steps = [1; 11; 21; 31; 41; 51]
-nbins = 20 .* ones(Int, length(steps))
-
-function get_hist_data(xTrajs, steps, nbins)
-    map(zip(steps, nbins)) do (k, nb)
-        xk = xTrajs[k, :]
-
-        n, bins = hist(xk; bins=nb, density=true, edgecolor="black")
-        width = bins[2] - bins[1]
-        xrange = bins[1:end-1] .+ width/2
-
-        (n=n, xrange=xrange, width=width)
-    end
-end
-
-function plot_hist3d(hist_data, steps, info)
-    FS, LW = 10, 2
-    fig = figure(figsize=(8.4, 4))
-    ax = fig.add_subplot(111, projection="3d")
-
-    for (y, h) in Iterators.reverse(zip(steps, hist_data))
-        bar(h.xrange, h.n, 0.8 * h.width; zs=y, zdir="y", alpha=0.7)
-    end
-
-    xlabel(info, size=FS)
-    ylabel(L"k", size=FS)
-    zlabel(L"PDF", size=FS)
-    ax.set_box_aspect([1.0, 1, 0.6])
-    ax.view_init(elev=25, azim=-140)
-
-    fig.text(0.53, 0.01,
-        "Time evolution of empirical distributions of "*latexstring(info),
-        fontsize=FS, ha="center")
-    display(fig)
-end
-
-hist_data_1 = get_hist_data(xTrajs[1,:,:], steps, nbins)
-hist_data_2 = get_hist_data(xTrajs[2,:,:], steps, nbins)
-
-plot_hist3d(hist_data_1, steps, L"X_1")
+fig_x1, ax_x1 = plot3d_hist(x1Trajs, steps; nbins=20, xlabel=L"X_1", showfig=false)
+fig_x1.text(0.5, 0.08,
+    "Histograms of $(Ns) samples of " * string(L"X_1"),
+    fontsize = 12, ha = "center")
+display(fig_x1)
 # savefig("figures/EX2_TankDistributionX1.pdf")
-plot_hist3d(hist_data_2, steps, L"X_2")
-# savefig("figures/EX2_TankDistributionX2.pdf")
 
+fig_x2, ax_x2 = plot3d_hist(x2Trajs, steps; nbins=20, xlabel=L"X_2", showfig=false)
+fig_x2.text(0.5, 0.08,
+    "Histograms of $(Ns) samples of " * string(L"X_2"),
+    fontsize = 12, ha = "center")
+display(fig_x2)
+# savefig("figures/EX2_TankDistributionX2.pdf")
 ## ===========================================================================
 #=
 The following part is for the Serial sampling, which takes a long max_cpu_time
@@ -222,8 +189,9 @@ This Serial sampling part is commented out
 # xTrajs = Array{Float64}(undef, nx, Nmpc+1, Ns)
 # xTrajs[:,1,:] = 2*rand(nx,Ns).-1
 # uTrajs = Array{Float64}(undef, nu, Nmpc, Ns)
-# ξTrajs = randn(nw, Nmpc, Ns)
-# wTrajs = 0.05*(ξTrajs .+ ξTrajs.^2)
+# rng = MersenneTwister(1)
+# W = samplePCE(WPCE, Nmpc*Ns; rng=rng) 
+# wTrajs = reshape(W, nw, Nmpc, Ns)
 
 # model = buildOCP(problem; print_level=0, max_cpu_time=10.)
 
@@ -242,8 +210,9 @@ This Serial sampling part is commented out
 # end
 # end
 
-## Compare the computation time of parallel and serial sampling
+## --------------------------------------------------------------------------
+# Compare the computation time of parallel and serial sampling
 # tAverageSerial      = tAllSerial/Ns
 # tAverageParallel    = tAllParallel/Ns
 # tOCPSerial          = tAverageSerial/Nmpc
-# tOCPParallel        = tAverageParallel/Nmpc 
+# tOCPParallel        = tAverageParallel/Nmpc

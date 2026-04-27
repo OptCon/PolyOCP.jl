@@ -2,10 +2,10 @@ module Objectives
 
 using JuMP
 
-using ..Problem: StochProb
+using ..Problem: StochOCP
 
 "Define a quadratic objective function."
-function quadobj(model::JuMP.Model, problem::StochProb;
+function quadobj(model::JuMP.Model, problem::StochOCP;
                 state::Symbol = :x, input::Symbol = :u)
     
     Q   = problem.Q

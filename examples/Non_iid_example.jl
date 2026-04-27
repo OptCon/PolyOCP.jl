@@ -7,11 +7,10 @@ where U denotes the uniform distribution
 """
 
 using PolyOCP
-using LinearAlgebra, JuMP
-using FFTW, PyPlot, LaTeXStrings
-using Distributions, Random
+using LinearAlgebra
 
-## Define problem parameters
+## --------------------------------------------------------------------------
+# Define problem parameters
 N    = 10  # Number of time steps
 
 A    = [0.95123 0;              # 2×2 system
@@ -35,7 +34,7 @@ W0PCE   = genPCE(W0)
 W1PCE   = genPCE(W1)
 wcoeff  = repeat([W0PCE.coeff,W1PCE.coeff], div(N,2))
 
-##
+## --------------------------------------------------------------------------
 problem = StochProb(
     N, 
     A, B, E,
@@ -45,7 +44,7 @@ problem = StochProb(
 )
 
 model= build(problem)
-solution_x, solution_u, obj = solveOCP(model)
-x1sol = solution_x[1,:,:]
-x2sol = solution_x[2,:,:]
-usol  = solution_u[1,:,:]
+xsol_coeff, usol_coeff, obj = solveOCP(model)
+x1sol_coeff = xsol_coeff[1,:,:]
+x2sol_coeff = xsol_coeff[2,:,:]
+usol_coeff  = usol_coeff[1,:,:]

@@ -57,8 +57,8 @@ export  OrthonoPCE,
         jointPCE
 
 include("Problem.jl")
-using   .Problem: StochProb, defineOCP
-export  StochProb, defineOCP
+using   .Problem: StochOCP, defineOCP
+export  StochOCP, defineOCP
 
 ## used packages: JuMP, ParameterJuMP, SpecialFunctions, SparseArrayKit
 include("Constraints.jl")
@@ -75,4 +75,19 @@ include("Solver.jl")
 using .Solver: buildOCP, solveOCP
 export buildOCP, solveOCP
 
-end  # module StochasticToolkit
+## used packages: FFTW
+include("Density.jl")
+using .Density: PCEgrouped, char_fun, char_fun_dist, pdfPCE
+export PCEgrouped, char_fun, char_fun_dist, pdfPCE
+
+##
+include("Sampling.jl")
+using .Sampling: samplePCE, samplePCE_traj
+export samplePCE, samplePCE_traj
+
+## used packages: PyPlot, LaTeXStrings
+include("Visualization.jl")
+using .Visualization: plot_quick, plot_pdf, plot_traj_PCE, plot_traj, plot3d_pdf, plot3d_hist
+export plot_quick, plot_pdf, plot_traj_PCE, plot_traj, plot3d_pdf, plot3d_hist
+
+end  # module PolyOCP

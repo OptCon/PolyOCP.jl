@@ -149,7 +149,17 @@ end
 function LaguerreOrthonoPoly(deg::Int, shape::Real, rate::Real; Nrec::Int = deg + 1,
         addQuadrature::Bool = true)
     _checkConsistency(deg, Nrec)
-    α, β = r_scale((rate^shape) / gamma(shape), rm_laguerre(Nrec, shape - 1.0)...)
+    # α, β = r_scale((rate^shape) / gamma(shape), rm_laguerre(Nrec, shape - 1.0)...)
+    # sp = computeSP2(deg, β)
+    # quadrature = addQuadrature ? Quad(length(α) - 1, α, β) : EmptyQuad()
+
+    α1, β1 = r_scale(1 / gamma(shape), rm_laguerre(Nrec, shape - 1.0)...)
+
+    # rescale variable x -> rate*x to obtain Gamma(shape, rate)
+    α = α1 ./ rate
+    β = copy(β1)
+    β[2:end] ./= rate^2
+
     sp = computeSP2(deg, β)
     quadrature = addQuadrature ? Quad(length(α) - 1, α, β) : EmptyQuad()
 
@@ -181,8 +191,13 @@ struct MultiOrthonoPoly{M, Q, V <: AbstractVector} <: AbstractOrthonoPoly{M, Q}
     dep::Bool
 end
 
+# MultiOrthonoPoly ignores the ConstantOrthonoPoly
+# This filter is added in the revision of the toolbox
+# This function needs to be tested
 function MultiOrthonoPoly(uniOrthonoPolys::AbstractVector{<:AbstractCanonicalOrthonoPoly};
                           dep::Bool = false, deg::Union{Int, Nothing} = nothing)
+
+    uniOrthonoPolys = filter(op -> !(op isa ConstantOrthonoPoly), uniOrthonoPolys)
     dep ? _multiorthono_dep(uniOrthonoPolys, deg) : _multiorthono_indep(uniOrthonoPolys)
 end
 

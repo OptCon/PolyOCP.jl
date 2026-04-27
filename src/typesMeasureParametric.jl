@@ -64,7 +64,7 @@ struct GammaMeasureParametric <: AbstractCanonicalMeasureParametric
 
     function GammaMeasureParametric(α::Real=5.0, β::Real=1.0)
         α <= 0 && throw(DomainError(α, "shape parameter needs to be positive"))
-        β != 1 && throw(DomainError(β, "rate must be unity (currently!)"))
+        β <= 0 && throw(DomainError(β, "rate parameter must be positive"))
 
         w = t -> w_gamma_parametric(t, α, β)
         new((α,β), w, (0, Inf), true)

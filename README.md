@@ -65,14 +65,14 @@ Comprehensive documentation is still in developing. For detailed examples, see t
 
 If you use `PolyOCP.jl` in your research, please cite [this paper](https://arxiv.org/abs/2511.19084):
 ```
-@Article{ou2025polyocp,
+@Article{ou2026polyocp,
      title = {PolyOCP.jl -- A Julia Package for Stochastic OCPs and MPC}, 
     author = {Ruchuan Ou and Learta Januzi and Jonas Schie{\ss}l and Michael Heinrich Baumann and Lars Gr{\"u}ne and Timm Faulwasser},
-      year = {2025},
+      year = {2026},
    journal = {arXiv: 2511.19084}
 }
 ```
-
+This paper has been accepted for European Control Conference 2026.
 
 ## Acknowledgements
 

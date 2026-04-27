@@ -4,7 +4,7 @@ using JuMP, ParameterJuMP
 using SpecialFunctions: erfinv
 using SparseArrayKit: SparseArray
 
-using ..Problem:StochProb
+using ..Problem:StochOCP
 
 # export add_initial_conditions, apply_chance_constraints, add_dynamics
 # export  _constraint_dynamics, constraint_chance_constraints, constraint_causality
@@ -111,7 +111,7 @@ function con_chance(model::Model,
 end
 
 # add constraint for causality
-function con_causality(model::Model, problem::StochProb; input::Symbol = :u)
+function con_causality(model::Model, problem::StochOCP; input::Symbol = :u)
     con_causality(model, problem.x0coeff, problem.wcoeff, problem.N; input=input)
 end
 
@@ -156,7 +156,7 @@ end
 
 
 "Add constraints w.r.t. dynamics for all PCE terms."
-function con_dynamics(model::Model, problem::StochProb, x0coeff_joint::AbstractMatrix{<:Real}, wcoeff_joint::AbstractArray{<:Real,3};
+function con_dynamics(model::Model, problem::StochOCP, x0coeff_joint::AbstractMatrix{<:Real}, wcoeff_joint::AbstractArray{<:Real,3};
                         state::Symbol = :x, input::Symbol = :u)
 
     L = size(wcoeff_joint, 3)
@@ -180,16 +180,16 @@ function con_initial_param(model::Model; x0::Union{AbstractVector{<:Real},Nothin
         length(x0) == nx || throw(ArgumentError("x0 must have legnth $(nx) (got $(length(x0))"))
     end
 
-    @variable(model, x0Param[i in 1:nx]==x0[i], Param())
-    @constraint(model, initial_condition, x0coeff_joint .== [x0Param SparseArray(zeros(nx,L-1))])
+    @variable(model, x0param[i in 1:nx]==x0[i], Param())
+    @constraint(model, initial_condition, x0coeff_joint .== [x0param SparseArray(zeros(nx,L-1))])
 end
 
-function update_initial_param(model::Model, x0::AbstractVector{<:Real}; state::Symbol = :x0Param)
+function update_initial_param(model::Model, x0::AbstractVector{<:Real}; state::Symbol = :x0param)
 
-    x0Param = model[:x0Param]
-    length(x0) == length(x0Param) || throw(ArgumentError("x0 must have legnth $(length(x0Param)) (got $(length(x0))"))
+    x0param = model[:x0param]
+    length(x0) == length(x0param) || throw(ArgumentError("x0 must have legnth $(length(x0param)) (got $(length(x0))"))
 
-    set_value.(x0Param, x0);
+    set_value.(x0param, x0);
 end
 
 end

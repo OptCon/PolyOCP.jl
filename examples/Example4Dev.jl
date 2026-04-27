@@ -1,6 +1,7 @@
 """
 using Pkg
 Pkg.develop(path="local path")
+using Revise
 the above commands activate the develop environment, only run once.
 
 This example revisits the chemical reactor example, but with non-i.i.d. disturbances
@@ -10,7 +11,6 @@ W(2) ~ W(0), W(3) ~ W(1),...
 where U denotes the uniform distribution
 """
 
-using Revise
 using PolyOCP
 using LinearAlgebra, JuMP
 using FFTW, PyPlot, LaTeXStrings

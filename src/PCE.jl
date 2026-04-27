@@ -160,7 +160,9 @@ function rec2coeff(deg::Int, a::Vector{<:Real}, b::Vector{<:Real}, sp::Vector{<:
     c = [ci ./ ni for (ci, ni) in zip(c, norm2)]
     return c
 end
-rec2coeff(α, β, sp) = rec2coeff_normalized(length(sp-1), α, β, sp)
+
+rec2coeff(α::Vector{<:Real}, β::Vector{<:Real}, sp::Vector{<:Real}) =
+    rec2coeff(length(sp)-1, α, β, sp)
 
 # this function can be extended to measures defined in PolyChaos.jl
 function  measure2poly(m::AbstractCanonicalMeasure) # m -> measure
@@ -186,11 +188,19 @@ The joint PCE basis depends on the dependence of elements in the random variable
 
 function genPCE(m::AbstractCanonicalMeasureParametric)
     onp     = measure2poly(m)
-    coeff   = convert2affinePCE(m.pars..., onp) 
+    coeff   = convert2affinePCE(_affine_pars(m)..., onp) 
 
     OrthonoPCE{AbstractOrthonoPoly, AbstractVector{<:Real}}(
         onp,
         coeff)
+end
+
+function genPCE(vecMeasure::AbstractVector{<:AbstractCanonicalMeasureParametric})
+    vecPoly = measure2poly.(vecMeasure)
+    monp    = MultiOrthonoPoly(vecPoly)
+    coeffs  = [convert2affinePCE(_affine_pars(m)..., monp.uni[i]) for (i,m) in enumerate(vecMeasure)]
+
+    genPCE(monp, coeffs)
 end
 
 function genPCE(monp::MultiOrthonoPoly, coeffs::Vector{<:AbstractVector})
@@ -207,14 +217,6 @@ function genPCE(monp::MultiOrthonoPoly, coeffs::Vector{<:AbstractVector})
     OrthonoPCE{AbstractOrthonoPoly, AbstractMatrix{<:Real}}(
         monp,
         coeff)
-end
-
-function genPCE(vecMeasure::AbstractVector{<:AbstractCanonicalMeasureParametric})
-    vecPoly = measure2poly.(vecMeasure)
-    monp    = MultiOrthonoPoly(vecPoly)
-    coeffs  = [convert2affinePCE(m.pars..., monp.uni[i]) for (i,m) in enumerate(vecMeasure)]
-    
-    genPCE(monp, coeffs)
 end
 
 function genPCE(uniPCEs::AbstractVector{<:OrthonoPCE})
@@ -235,11 +237,11 @@ X = a_1 + a_2 \\Xi = x_0 + x_1 \\phi_1(\\Xi),
 where ``\\phi_1(t) = 1/sqrt(sp_1) * (t-\\alpha_0)`` is the first-order monic basis polynomial.
 
 Works for subtypes of AbstractCanonicalOrthoPoly. The keyword `kind in ["lbub", "μσ"]`
-specifies whether `p1` and `p2` have the meaning of lower/upper bounds or mean/standard deviation.
+specifies whether `a1` and `a2` have the meaning of lower/upper bounds or mean/standard deviation.
 """
 # should the following function be renamed to convert2affinePCE_normalized?
-function convert2affinePCE(a1::Real, a2::Real, α0::Real, sp1::Real)
-    [a1 + α0 * a2; a2/sqrt(sp1)]
+function convert2affinePCE(a1::Real, a2::Real, α0::Real, sp::Real)
+    [a1 + α0 * a2; a2*sqrt(sp)]
 end
 
 function convert2affinePCE(c::Real, onp::ConstantOrthonoPoly)
@@ -263,23 +265,42 @@ function convert2affinePCE(par1::Real, par2::Real, onp::LegendreOrthonoPoly; kin
     convert2affinePCE(a1, a2, first(onp.α), last(onp.sp))
 end
 
+"""
+The correctness of convert2affinePCE for Beta distribution needs to be carefully checked
+"""
 function convert2affinePCE(p1::Real, p2::Real, onp::JacobiOrthonoPoly; kind::String = "lbub")
     kind = _checkKind(kind)
     α, β = onp.measure.pars
     a1, a2 = if kind == "lbub"
         _checkBounds(p1, p2)
-        a1, a2 = p1, p2 - p1
+        p1, p2 - p1
     elseif kind == "μσ"
         _checkStandardDeviation(p2)
-        a1,
-        a2 = p1 - sqrt(α / β) * sqrt(1 + α + β) * p2,
+        p1 - sqrt(α / β) * sqrt(1 + α + β) * p2,
         (α + β) * sqrt((α + β + 1) / (α * β)) * p2
     end
-    convert2affinePCE(a1, a2, first(onp.α))
+    convert2affinePCE(a1, a2, first(onp.α), last(onp.sp))
 end
 
-function convert2affinePCE(p1::Real, p2::Real, onp::LaguerreOrthonoPoly)
-    throw(error("convert2affine not yet implemented for $(typeof(onp))"))
+"""
+The correctness of convert2affinePCE for Gamma distribution needs to be carefully checked
+"""
+function convert2affinePCE(par1::Real, par2::Real,
+                           onp::LaguerreOrthonoPoly; kind::String = "μσ")
+    kind = _checkKind(kind)
+    α, β = onp.measure.pars
+
+    if kind == "lbub"
+        @info "For Gamma distributions, `kind = \"lbub\"` is not supported because the support [lb, ∞) does not determine the scaling uniquely. Please use `kind = \"μσ\"`."
+        throw(ArgumentError("`kind = \"lbub\"` is not supported for Gamma distributions. Use `kind = \"μσ\"`."))
+    end
+
+    _checkStandardDeviation(par2)
+
+    a1 = par1 - sqrt(α) * par2
+    a2 = β / sqrt(α) * par2
+
+    convert2affinePCE(a1, a2, first(onp.α), last(onp.sp))
 end
 
 # extend the function assign2multi to the case of ConstantOrthonoPoly/0-degree polynomials
@@ -318,7 +339,8 @@ end
 
 ## Generate joint PCE basis and coefficient for the whole horizon
 ## First consider i.i.d. disturbances
-function jointPCE(x0coeff::AbstractMatrix{<:Real}, wcoeff::AbstractMatrix{<:Real}, N)
+function jointPCE(x0coeff::AbstractMatrix{<:Real}, wcoeff::AbstractMatrix{<:Real}, N::Int)
+    _check_horizon(N)
 
     nx, Lx  = size(x0coeff)
     nw, Lw  = size(wcoeff)
@@ -326,8 +348,6 @@ function jointPCE(x0coeff::AbstractMatrix{<:Real}, wcoeff::AbstractMatrix{<:Real
 
     x0coeff_joint         = [x0coeff SparseArray(zeros(nx,L-Lx))]
     wcoeff_joint          = SparseArray(zeros(nw, N, L))
-    # x0coeff_joint         = [x0coeff SparseArray(zeros(nx,L-Lx))]
-    # wcoeff_joint          = SparseArray(zeros(nw, N, L))
     wcoeff_joint[:,:,1]   = wcoeff[:,1]*ones(1,N)
     for k = 1:N
         i                   = (k-1)*(Lw-1)+Lx+1:k*(Lw-1)+Lx
@@ -337,21 +357,22 @@ function jointPCE(x0coeff::AbstractMatrix{<:Real}, wcoeff::AbstractMatrix{<:Real
     return x0coeff_joint, wcoeff_joint
 end
 
-function jointPCE(x0basis::MultiOrthonoPoly, wbasis::MultiOrthonoPoly, N)
+function jointPCE(x0basis::MultiOrthonoPoly, wbasis::MultiOrthonoPoly, N::Int)
+    _check_horizon(N)
     MultiOrthonoPoly([x0basis.uni[:]; repeat(wbasis.uni, N)])
 end
 
-function jointPCE(x0PCE::OrthonoPCE, wPCE::OrthonoPCE, N)
+function jointPCE(x0PCE::OrthonoPCE, wPCE::OrthonoPCE, N::Int)
 
     x0coeff, x0basis    = x0PCE.coeff, x0PCE.basis
     wcoeff, wbasis      = wPCE.coeff, wPCE.basis
 
     basis_joint = jointPCE(x0basis, wbasis, N)
-    x0coeff_joint, wcoeff_joint = jointPCE(x0coeff, wcoeff, N)
+    x0coeff_joint, wcoeff_joint = jointPCE(x0coeff, wcoeff, N::Int)
     return basis_joint, x0coeff_joint, wcoeff_joint
 end
 
-# Then consider non-i.i.d. disturbances
+# Consider non-i.i.d. disturbances
 # In the current version, the input can only be PCE coefficients
 function jointPCE(x0coeff::AbstractMatrix{<:Real},
                     wcoeff::AbstractVector{T}) where T<:AbstractMatrix{<:Real}
@@ -390,6 +411,48 @@ function jointPCE(x0coeff::AbstractMatrix{<:Real},
     jointPCE(x0coeff, wcoeff)
 end
 
+# Consider deterministic initial condition, e.g., MPC
+function jointPCE(wcoeff::AbstractMatrix{<:Real}, N::Int)
+
+    _check_horizon(N)
+    nw, Lw  = size(wcoeff)
+    L       = 1 + N*(Lw-1)
+
+    wcoeff_joint          = SparseArray(zeros(nw, N, L))
+    wcoeff_joint[:,:,1]   = wcoeff[:,1]*ones(1,N)
+    for k = 1:N
+        i                   = (k-1)*(Lw-1)+2:k*(Lw-1)+1
+        wcoeff_joint[:,k,i] = wcoeff[:,2:end]
+    end
+
+    return wcoeff_joint
+end
+
+function jointPCE(wbasis::MultiOrthonoPoly, N::Int)
+    _check_horizon(N)
+    MultiOrthonoPoly(repeat(wbasis.uni, N))
+end
+
+function jointPCE(wPCE::OrthonoPCE, N::Int)
+
+    wcoeff, wbasis      = wPCE.coeff, wPCE.basis
+
+    basis_joint = jointPCE(wbasis, N)
+    wcoeff_joint = jointPCE(wcoeff, N)
+    return basis_joint, wcoeff_joint
+end
+
+# Non-i.i.d. disturbances with deterministic initial condition can be added here.
+
+## auxiliary functions
+_gamma_mean_std(α::Real, β::Real) = (α / β, sqrt(α) / β)
+
+_affine_pars(m::DiracMeasureParametric)   = (m.pars,)
+_affine_pars(m::GaussMeasureParametric)   = m.pars
+_affine_pars(m::UniformMeasureParametric) = m.pars
+_affine_pars(m::BetaMeasureParametric)    = m.dom
+_affine_pars(m::GammaMeasureParametric)   = _gamma_mean_std(m.pars...)
+
 ## auxiliary functions from PolyChaos.jl
 function _checkKind(kind::String)
     lowercase(kind) ∉ ["lbub", "μσ"] &&
@@ -418,5 +481,7 @@ function _checkStandardDeviation(σ::Real)
     σ < 1e-4 && @warn "σ is close to zero (σ = $σ)"
 end
 
+_check_horizon(N::Int) =
+    N > 0 || throw(ArgumentError("`N` must be positive (got $N)"))
 
 end
